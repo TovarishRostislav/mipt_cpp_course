@@ -1,25 +1,66 @@
-#include <cstdio>
 #include <fstream>
 #include <print>
 #include <string>
 #include <map>
 #include <vector>
+#include <charconv>
+#include <cstring>
+#include <iostream>
+
+#include "parse.h"
+#include "event_list.h"
+
+static void print_context(const nano_edr::EventList& window) {
+    const nano_edr::Event* last[2] = {nullptr, nullptr};
+    int count = 0;
+
+    for (nano_edr::EventNode* n = window.head; n; n = n->next) {
+        last[0] = last[1];
+        last[1] = &n->event;
+        if (count < 2) ++count;
+    }
+
+    for (int i = 0; i < count; ++i) {
+        const nano_edr::Event* e = last[2 - count + i];
+        int label = -(count - i);
+        std::cout << "[CTX] " << label
+                  << ": ts="   << e->ts
+                  << " type="  << e->type
+                  << " pid="   << e->pid
+                  << '\n';
+    }
+}
 
 int main(int argc, char** argv) {
+    std::size_t window_size = 64;
     bool quiet = false;
     std::string log_path;
-
+    
+   
     for (int i = 1; i < argc; ++i) {
-        std::string arg = argv[i];
-        if (arg == "--quiet") {
+        if (std::strcmp(argv[i], "--quiet") == 0) {
             quiet = true;
+        } else if (std::strcmp(argv[i], "--window-size") == 0) {
+            if (i + 1 >= argc) {
+                std::cerr << "не передан --window_size\n";
+                return 1;
+            }
+            const char* p   = argv[++i];       
+            const char* end = p + std::strlen(p);
+            std::size_t v = 0;
+            auto [ptr, ec] = std::from_chars(p, end, v);
+            if (ec != std::errc{} || ptr != end) {
+                std::cerr << "error: неправильный --window-size\n";
+                return 1;
+            }
+            window_size = v;
         } else {
-            log_path = arg;
+            log_path = argv[i];               
         }
     }
 
     if (log_path.empty()) {
-        std::print(stderr, "использование: nano-edr <журнал.log> [--quiet]\n");
+        std::print(stderr, "используй: nano-edr <журнал.log> [--quiet] [--window-size N]\n");
         return 2;
     }
 
@@ -28,6 +69,9 @@ int main(int argc, char** argv) {
         std::print(stderr, "не удалось открыть журнал: {}\n", log_path);
         return 2;
     }
+
+    nano_edr::EventList window;
+    window.capacity = window_size;
 
     long long lines = 0;
     long long comments = 0;
@@ -42,39 +86,46 @@ int main(int argc, char** argv) {
         "\\Startup\\"
     };
 
-    while (std::getline(log, line)) {
-        ++lines;
+    while (std::getline(log, line)) {          
+        ++lines;                                
 
-        size_t first = line.find_first_not_of(" \t");
-        bool is_empty = (first == std::string::npos);
-        bool is_comment = false;
-        if (!is_empty && (line[first] == '#' || line[first] == ';')) {
-            is_comment = true;
-        }
-
-        if (is_empty || is_comment) {
-            if (is_comment) {
-                ++comments;
-            }
+        if (nano_edr::IsBlankOrComment(&line)) {
+            ++comments;                          
             continue;
         }
 
-        ++total_events;
-
-        size_t pos = line.find("type=");
-        if (pos != std::string::npos) {
-            size_t start = pos + 5;
-            size_t end = line.find(' ', start);
-            std::string type = line.substr(start, end - start);
-            type_counts[type]++;
+        nano_edr::Event ev;
+        if (!nano_edr::ParseEventLine(&line, &ev)) {
+            continue;                            
         }
 
+        ++total_events;
+        type_counts[ev.type]++;                
+
+        
+        bool any_detected = false;
         for (const auto& pat : patterns) {
-            if (line.find(pat) != std::string::npos) {
+            
+            bool hit = false;
+            for (const auto& f : ev.fields) {
+                if (f.value.find(pat) != std::string::npos) {
+                    hit = true;
+                    break;
+                }
+            }
+            if (hit) {
                 std::print("[DETECT] строка {}, признак {}: {}\n",
                            lines, pat, line);
+                any_detected = true;
             }
         }
+
+        
+        if (any_detected && !quiet) {
+            print_context(window);
+        }
+
+        nano_edr::ListPushBack(&window, &ev);    
     }
 
     if (!quiet) {
