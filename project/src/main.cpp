@@ -5,29 +5,17 @@
 #include <vector>
 #include <charconv>
 #include <cstring>
-#include <iostream>
 
 #include "parse.h"
 #include "event_list.h"
 
-static void print_context(const nano_edr::EventList& window) {
-    const nano_edr::Event* last[2] = {nullptr, nullptr};
-    int count = 0;
 
-    for (nano_edr::EventNode* n = window.head; n; n = n->next) {
-        last[0] = last[1];
-        last[1] = &n->event;
-        if (count < 2) ++count;
-    }
-
+static void print_context(const nano_edr::Event* const last[2], int count) {
     for (int i = 0; i < count; ++i) {
         const nano_edr::Event* e = last[2 - count + i];
         int label = -(count - i);
-        std::cout << "[CTX] " << label
-                  << ": ts="   << e->ts
-                  << " type="  << e->type
-                  << " pid="   << e->pid
-                  << '\n';
+        std::print("[CTX] {}: ts={} type={} pid={}\n",
+                   label, e->ts, e->type, e->pid);
     }
 }
 
@@ -35,27 +23,29 @@ int main(int argc, char** argv) {
     std::size_t window_size = 64;
     bool quiet = false;
     std::string log_path;
-    
-   
+
+
+    const nano_edr::Event* last_two[2] = {nullptr, nullptr};
+    int last_count = 0;
+
+
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--quiet") == 0) {
             quiet = true;
         } else if (std::strcmp(argv[i], "--window-size") == 0) {
             if (i + 1 >= argc) {
-                std::cerr << "не передан --window_size\n";
+                std::print(stderr, "не передан --window-size\n");
                 return 1;
             }
-            const char* p   = argv[++i];       
+            const char* p   = argv[++i];
             const char* end = p + std::strlen(p);
-            std::size_t v = 0;
-            auto [ptr, ec] = std::from_chars(p, end, v);
+            auto [ptr, ec] = std::from_chars(p, end, window_size);
             if (ec != std::errc{} || ptr != end) {
-                std::cerr << "error: неправильный --window-size\n";
+                std::print(stderr, "неправильный --window-size\n");
                 return 1;
             }
-            window_size = v;
         } else {
-            log_path = argv[i];               
+            log_path = argv[i];
         }
     }
 
@@ -86,26 +76,25 @@ int main(int argc, char** argv) {
         "\\Startup\\"
     };
 
-    while (std::getline(log, line)) {          
-        ++lines;                                
+    while (std::getline(log, line)) {
+        ++lines;
 
         if (nano_edr::IsBlankOrComment(&line)) {
-            ++comments;                          
+            ++comments;
             continue;
         }
 
         nano_edr::Event ev;
         if (!nano_edr::ParseEventLine(&line, &ev)) {
-            continue;                            
+            continue;
         }
 
         ++total_events;
-        type_counts[ev.type]++;                
+        type_counts[ev.type]++;
 
-        
+
         bool any_detected = false;
         for (const auto& pat : patterns) {
-            
             bool hit = false;
             for (const auto& f : ev.fields) {
                 if (f.value.find(pat) != std::string::npos) {
@@ -120,12 +109,17 @@ int main(int argc, char** argv) {
             }
         }
 
-        
+
         if (any_detected && !quiet) {
-            print_context(window);
+            print_context(last_two, last_count);
         }
 
-        nano_edr::ListPushBack(&window, &ev);    
+        nano_edr::ListPushBack(&window, &ev);
+
+
+        last_two[0] = (window.size >= 2) ? last_two[1] : nullptr;
+        last_two[1] = &window.tail->event;
+        last_count  = (window.size >= 2) ? 2 : 1;
     }
 
     if (!quiet) {
