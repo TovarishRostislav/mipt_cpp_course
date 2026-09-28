@@ -2,66 +2,72 @@
 #include <print>
 #include <string>
 #include <map>
-#include <vector>
 #include <charconv>
 #include <cstring>
+#include <exception>    
 
 #include "parse.h"
 #include "event_list.h"
+#include "rules.h"       
+#include "agent_rules.h"   
 
+static void print_context(const nano_edr::EventNode* ctx) {
+    if (ctx == nullptr) return;  
 
-static void print_context(const nano_edr::Event* const last[2], int count) {
-    for (int i = 0; i < count; ++i) {
-        const nano_edr::Event* e = last[2 - count + i];
-        int label = -(count - i);
-        std::print("[CTX] {}: ts={} type={} pid={}\n",
-                   label, e->ts, e->type, e->pid);
+    if (ctx->next == nullptr) { 
+        std::print("[CTX] -1: ts={} type={} pid={}\n",
+                   ctx->event.ts, ctx->event.type, ctx->event.pid);
+    } else {                                 // два и больше
+        std::print("[CTX] -2: ts={} type={} pid={}\n",
+                   ctx->event.ts, ctx->event.type, ctx->event.pid);
+        std::print("[CTX] -1: ts={} type={} pid={}\n",
+                   ctx->next->event.ts, ctx->next->event.type, ctx->next->event.pid);
     }
 }
 
-int main(int argc, char** argv) {
-    std::size_t window_size = 64;
-    bool quiet = false;
-    std::string log_path;
+static void print_summary(long long lines, long long comments,
+                        long long total_events, const std::map<std::string, int>& type_counts){
+                            std::print("строк {}, из них комментариев {}\n", lines, comments);
+                            std::print("событий всего: {}\n", total_events);
+                            for(const auto& [type,count] : type_counts){
+                                std::print("type={}: {}\n", type, count);
+                            }
+}
 
+static int parse_args(int argc, char** argv, std::size_t& window_size,
+                    bool& quiet, std::string& log_path){
+                        for(int i = 1; i< argc; ++i){
+                            if(std::strcmp(argv[i], "--quiet") == 0){
+                                quiet = true;
+                            }else if(std::strcmp(argv[i], "--window-size") == 0){
+                                if (i+1 >= argc){
+                                    std::print(stderr, "не передан --window-size\n");
+                                    return 1;
+                                }
+                                const char* l = argv[++i];
+                                const char* r = l + std::strlen(l);
+                                auto [ptr, ec] = std::from_chars(l, r, window_size);
+                                if(ec != std::errc{} || ptr != r){
+                                    std::print(stderr, "неправильный --window-size\n");
+                                    return 1;
+                                }
+                            }else{
+                                log_path = argv[i];
+                            }
+                        }
+                        if(log_path.empty()){
+                            std::print(stderr, "используй: nano-edr <журнал.log> [--quiet] [--window-size N]\n");
+                            return 2;
+                        }
+                        
+    return 0;
+ }
 
-    const nano_edr::Event* last_two[2] = {nullptr, nullptr};
-    int last_count = 0;
-
-
-    for (int i = 1; i < argc; ++i) {
-        if (std::strcmp(argv[i], "--quiet") == 0) {
-            quiet = true;
-        } else if (std::strcmp(argv[i], "--window-size") == 0) {
-            if (i + 1 >= argc) {
-                std::print(stderr, "не передан --window-size\n");
-                return 1;
-            }
-            const char* p   = argv[++i];
-            const char* end = p + std::strlen(p);
-            auto [ptr, ec] = std::from_chars(p, end, window_size);
-            if (ec != std::errc{} || ptr != end) {
-                std::print(stderr, "неправильный --window-size\n");
-                return 1;
-            }
-        } else {
-            log_path = argv[i];
-        }
-    }
-
-    if (log_path.empty()) {
-        std::print(stderr, "используй: nano-edr <журнал.log> [--quiet] [--window-size N]\n");
-        return 2;
-    }
-
-    std::ifstream log(log_path);
-    if (!log) {
-        std::print(stderr, "не удалось открыть журнал: {}\n", log_path);
-        return 2;
-    }
-
+static int process_log(std::ifstream& log, std::size_t window_size, bool quiet){
     nano_edr::EventList window;
     window.capacity = window_size;
+
+    nano_edr::EventNode* ctx = nullptr; 
 
     long long lines = 0;
     long long comments = 0;
@@ -69,66 +75,62 @@ int main(int argc, char** argv) {
     std::string line;
     std::map<std::string, int> type_counts;
 
-    const std::vector<std::string> patterns = {
-        "wscript.exe",
-        ".locked",
-        "certutil.exe",
-        "\\Startup\\"
-    };
-
-    while (std::getline(log, line)) {
+    while(std::getline(log,line)){
         ++lines;
 
-        if (nano_edr::IsBlankOrComment(&line)) {
+        if (nano_edr::IsBlankOrComment(&line)){
             ++comments;
             continue;
         }
 
         nano_edr::Event ev;
-        if (!nano_edr::ParseEventLine(&line, &ev)) {
+        if (!nano_edr::ParseEventLine(&line, &ev)){
             continue;
         }
 
         ++total_events;
         type_counts[ev.type]++;
 
-
-        bool any_detected = false;
-        for (const auto& pat : patterns) {
-            bool hit = false;
-            for (const auto& f : ev.fields) {
-                if (f.value.find(pat) != std::string::npos) {
-                    hit = true;
-                    break;
-                }
-            }
-            if (hit) {
-                std::print("[DETECT] строка {}, признак {}: {}\n",
-                           lines, pat, line);
-                any_detected = true;
-            }
+        const std::size_t detected = nano_edr::CheckRules(ev,nano_edr::AgentRules(),
+            nano_edr::AgentRuleCount());
+        if (detected > 0 && !quiet){
+            print_context(ctx);
         }
 
-
-        if (any_detected && !quiet) {
-            print_context(last_two, last_count);
-        }
-
+        nano_edr::EventNode* old_tail = window.tail;
         nano_edr::ListPushBack(&window, &ev);
+        ctx = old_tail ? old_tail : window.head;
 
 
-        last_two[0] = (window.size >= 2) ? last_two[1] : nullptr;
-        last_two[1] = &window.tail->event;
-        last_count  = (window.size >= 2) ? 2 : 1;
     }
 
-    if (!quiet) {
-        std::print("строк {}, из них комментариев {}\n", lines, comments);
-        std::print("событий всего: {}\n", total_events);
-        for (const auto& [type, count] : type_counts) {
-            std::print("type={}: {}\n", type, count);
-        }
+    if(!quiet){
+        print_summary(lines, comments, total_events, type_counts);
     }
-
     return 0;
+}
+
+
+int main(int argc, char** argv) {
+    std::size_t window_size = 64;
+    bool quiet = false;
+    std::string log_path;
+
+    int parse_result = parse_args(argc, argv, window_size, quiet, log_path);
+    if(parse_result != 0) return parse_result;
+
+    std::ifstream log(log_path);
+    if (!log){
+        std::print(stderr, "не удалось открыть журнал: {}\n", log_path);
+        return 2;
+    }
+    
+    try{
+        return process_log(log, window_size, quiet);    
+    }catch (const std::exception& error){
+         std::print(stderr, "ошибка: {}\n", error.what());
+        return 1;
+    }
+    
+
 }
