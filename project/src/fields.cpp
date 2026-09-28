@@ -10,6 +10,12 @@
 
 namespace nano_edr {
 
+static constexpr char ToLower(char c) noexcept {
+    if (c >= 'A' && c <= 'Z') return static_cast<char>(c + ('a' - 'A'));
+    return c;
+}
+
+
 
 const std::string* FindField(const Event& event, const std::string& key) {
     for(const Field& field : event.fields){
@@ -93,29 +99,22 @@ bool CommandLineContains(const Event& event, const std::string& needle) {
 
 std::string NormalizePath(const std::string& path) {
     std::string lowd;
-    lowd.reserve(path.size());
-    for(char c : path){
-        char low = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        if(low == '/'){
-            lowd.push_back('\\');
-        }else{
-            lowd.push_back(low);
-        }
-    }
-    std::string conected;
-    conected.reserve(lowd.size());
     bool last_backslash = false;
-    for(char c : lowd){
-        if(c == '\\'){
-            if(!last_backslash){
-                conected.push_back(c);
-            }
+    lowd.reserve(path.size());
+    for (char c : path) {
+    char low = ToLower(c);
+
+    if (low == '/' || low == '\\') {
+        if (!last_backslash) {        
+            lowd.push_back('\\');
             last_backslash = true;
-        }else{
-            conected.push_back(c);
-            last_backslash = false;
         }
+
+    } else {
+        lowd.push_back(low);
+        last_backslash = false;       
     }
+}   
     auto replace_all = [](std::string& s, const std::string& from, const std::string& to){
         size_t pos = 0;
         while ((pos = s.find(from, pos)) != std::string::npos){
@@ -123,10 +122,11 @@ std::string NormalizePath(const std::string& path) {
             pos += to.size();
         }
     };
-    replace_all(conected, "%temp%", "\\appdata\\local\\temp");
-    replace_all(conected, "%tmp%",  "\\appdata\\local\\temp");
+    
+    replace_all(lowd, "%temp%", "\\appdata\\local\\temp");
+    replace_all(lowd, "%tmp%",  "\\appdata\\local\\temp");
 
-    return conected;
+    return lowd;
+
 }
-
 }  

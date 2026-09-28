@@ -17,7 +17,7 @@ static void print_context(const nano_edr::EventNode* ctx) {
     if (ctx->next == nullptr) { 
         std::print("[CTX] -1: ts={} type={} pid={}\n",
                    ctx->event.ts, ctx->event.type, ctx->event.pid);
-    } else {                                 // два и больше
+    } else { 
         std::print("[CTX] -2: ts={} type={} pid={}\n",
                    ctx->event.ts, ctx->event.type, ctx->event.pid);
         std::print("[CTX] -1: ts={} type={} pid={}\n",
@@ -34,7 +34,7 @@ static void print_summary(long long lines, long long comments,
                             }
 }
 
-static int parse_args(int argc, char** argv, std::size_t& window_size,
+static bool parse_args(int argc, char** argv, std::size_t& window_size,
                     bool& quiet, std::string& log_path){
                         for(int i = 1; i< argc; ++i){
                             if(std::strcmp(argv[i], "--quiet") == 0){
@@ -42,14 +42,14 @@ static int parse_args(int argc, char** argv, std::size_t& window_size,
                             }else if(std::strcmp(argv[i], "--window-size") == 0){
                                 if (i+1 >= argc){
                                     std::print(stderr, "не передан --window-size\n");
-                                    return 1;
+                                    return false;
                                 }
                                 const char* l = argv[++i];
                                 const char* r = l + std::strlen(l);
                                 auto [ptr, ec] = std::from_chars(l, r, window_size);
                                 if(ec != std::errc{} || ptr != r){
                                     std::print(stderr, "неправильный --window-size\n");
-                                    return 1;
+                                    return false;
                                 }
                             }else{
                                 log_path = argv[i];
@@ -57,10 +57,10 @@ static int parse_args(int argc, char** argv, std::size_t& window_size,
                         }
                         if(log_path.empty()){
                             std::print(stderr, "используй: nano-edr <журнал.log> [--quiet] [--window-size N]\n");
-                            return 2;
+                            return false;
                         }
                         
-    return 0;
+    return true;
  }
 
 static int process_log(std::ifstream& log, std::size_t window_size, bool quiet){
@@ -97,9 +97,14 @@ static int process_log(std::ifstream& log, std::size_t window_size, bool quiet){
             print_context(ctx);
         }
 
-        nano_edr::EventNode* old_tail = window.tail;
-        nano_edr::ListPushBack(&window, &ev);
-        ctx = old_tail ? old_tail : window.head;
+        if (window.capacity == 1){ 
+            nano_edr::ListPushBack(&window, &ev);
+            ctx = window.head;
+        }else{
+            nano_edr::EventNode* old_tail = window.tail;
+            nano_edr::ListPushBack(&window, &ev);
+            ctx = old_tail ? old_tail : window.head;
+        }
 
 
     }
@@ -116,8 +121,7 @@ int main(int argc, char** argv) {
     bool quiet = false;
     std::string log_path;
 
-    int parse_result = parse_args(argc, argv, window_size, quiet, log_path);
-    if(parse_result != 0) return parse_result;
+    if (!parse_args(argc, argv, window_size, quiet, log_path)) return 2;
 
     std::ifstream log(log_path);
     if (!log){

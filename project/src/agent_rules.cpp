@@ -5,12 +5,13 @@
 #include <string>
 
 namespace nano_edr {
-
-static const std::string* GetFilePath(const Event& event) {
+namespace{
+const std::string* GetFilePath(const Event& event) {
     if (event.type == "file_move") {
         return FindField(event, "to");
     }
     return FindField(event, "path");
+}
 }
 
 
@@ -70,7 +71,6 @@ bool RansomExtension(const Event& event) {
     std::string normalized = NormalizePath(*p);
 
     const std::string suffix = ".locked";
-    if(normalized.size() < suffix.size()) return false;
 
     return normalized.ends_with(suffix);
 }
