@@ -2,65 +2,62 @@
 
 namespace nano_edr {
 
-const char* ws = " \t";
 
-bool IsBlankOrComment(const std::string* line) {
-    if (line->empty()) {
+bool IsBlankOrComment(const std::string& line) {
+    
+    std::size_t first = line.find_first_not_of(" \t");
+
+    if(first == std::string::npos){
         return true;
     }
-    size_t pos = line->find_first_not_of(ws);
-    if (pos == std::string::npos) {
-        return true;
-    }
-    return (*line)[pos] == '#' || (*line)[pos] == ';';
+    char c = line[first];
+    return c == '#' || c == ';';
 }
 
-bool ParseEventLine(const std::string* line, Event* out) {
+bool ParseEventParts(const std::string& line, EventParts* out) {
     if (IsBlankOrComment(line)) return false;
 
-    *out = Event{};
+    *out = EventParts{};
 
     bool has_ts = false, has_type = false, has_pid = false;
 
-    const std::string& s = *line;                
-
-    const std::size_t n = s.size();
-    std::size_t i = 0;
+    const std::size_t n = line.size();
+    std::size_t i = 0;                
 
     while (i < n) {
 
-        while (i < n && (s[i] == ' ' || s[i] == '\t')) ++i;
+        while (i < n && (line[i] == ' ' || line[i] == '\t')) ++i;
         if (i >= n) break;
 
         
-        std::size_t eq = s.find('=', i);
+        std::size_t eq = line.find('=', i);
         if (eq == std::string::npos) return false;   
 
         
         for (std::size_t j = i; j < eq; ++j) {
-            if (s[j] == ' ' || s[j] == '\t') return false;  
+            if (line[j] == ' ' || line[j] == '\t') return false;  
         }
 
-        std::string key = s.substr(i, eq - i);
+        std::string key = line.substr(i, eq - i);
         if (key.empty()) return false;               
 
         i = eq + 1;
         std::string value;
 
-        if (i < n && s[i] == '"') {
+        if (i < n && line[i] == '"') {
             ++i;                                    
-            while (i < n && s[i] != '"') {
-                value.push_back(s[i]);              
+            while (i < n && line[i] != '"') {
+                value.push_back(line[i]);              
                 ++i;
             }
             if (i >= n) return false;               
             ++i;                                    
-            if (i < n && s[i] != ' ' && s[i] != '\t') {
+            if (i < n && line[i] != ' ' && line[i] != '\t') {
                 return false;                       
             }
         } else {
-            while (i < n && s[i] != ' ' && s[i] != '\t') {
-                value.push_back(s[i]);
+            while (i < n && line[i] != ' ' && line[i] != '\t') {
+                value.push_back(line[i]);
                 ++i;
             }
         }
@@ -77,7 +74,7 @@ bool ParseEventLine(const std::string* line, Event* out) {
         }
     }
 
-    return has_ts && has_type;
+    return true;
 }
 
 }  

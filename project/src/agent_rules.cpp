@@ -7,7 +7,7 @@
 namespace nano_edr {
 namespace{
 const std::string* GetFilePath(const Event& event) {
-    if (event.type == "file_move") {
+    if (event.type() == "file_move") {
         return FindField(event, "to");
     }
     return FindField(event, "path");
