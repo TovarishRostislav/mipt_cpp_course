@@ -20,24 +20,4 @@ const char* SeverityName(Severity severity) {
 
 }
 
-size_t CheckRules(const Event& event, const Rule* rules, size_t rule_count){
-
-
-    size_t detected = 0 ;
-
-    for(size_t i = 0; i < rule_count; ++i){
-        const Rule& rule = rules[i];
-        if (rule.check(event)){
-            ++detected;
-            std::print("[DETECT] {}  {}  ts={} pid={}\n",
-                       SeverityName(rule.severity),
-                       rule.id,
-                       event.raw_ts(),
-                       event.pid());
-        }
-    }
-
-    return detected;
-
-}
 }

@@ -1,4 +1,5 @@
 #include "fields.h"
+#include "text.h"
 
 #include <stdexcept>   
 #include <cstdint>     
@@ -9,13 +10,6 @@
 #include <system_error>   
 
 namespace nano_edr {
-
-static constexpr char ToLower(char c) noexcept {
-    if (c >= 'A' && c <= 'Z') return static_cast<char>(c + ('a' - 'A'));
-    return c;
-}
-
-
 
 const std::string* FindField(const Event& event, const std::string& key) {
     if(key == "ts") return &event.raw_ts();
@@ -77,14 +71,7 @@ bool PathEndsWith(const Event& event, const std::string& suffix) {
     const std::string* path = FindField(event, "path");
     if(!path) return false;
 
-    std::string norm_path = NormalizePath(*path);
-    std::string norm_suff = NormalizePath(suffix);
-
-    if(norm_path.size() < norm_suff.size()) return false;
-
-    return norm_path.ends_with(norm_suff);
-
-
+    return EndsWithIgnoreCase(*path, suffix);
 }
 
 
@@ -104,10 +91,10 @@ std::string NormalizePath(const std::string& path) {
     bool last_backslash = false;
     lowd.reserve(path.size());
     for (char c : path) {
-    char low = ToLower(c);
+    char low = MyToLower(c);
 
     if (low == '/' || low == '\\') {
-        if (!last_backslash) {        
+        if (!last_backslash) {
             lowd.push_back('\\');
             last_backslash = true;
         }
