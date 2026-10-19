@@ -75,7 +75,7 @@ class RuleBase : public IRule {
 
  private:
     std::string id_;
-    Severity severity_;
+    Severity severity_{Severity::kCritical};
     std::vector<std::string> actions_;
     std::size_t hits_ = 0;
 };
@@ -85,7 +85,7 @@ class MatchRule : public RuleBase {
  public:
     MatchRule(const std::string& id, Severity severity);
 
-    // Владение условием переходит правилу. Отсюда unique_ptr в подписи:
+    // Владение условием переходит правилу. Отсюда unique_ptr в сигнатуре:
     // он говорит об этом сам, и забыть освободить условие нечем.
     void AddCondition(std::unique_ptr<ICondition> condition);
 
@@ -128,13 +128,13 @@ class SequenceRule : public RuleBase {
 
  private:
     struct Pending {
-        uint64_t ts_ms;
+        uint64_t ts_ms{};
         std::string pid;
     };
 
     std::unique_ptr<ICondition> first_;
     std::unique_ptr<ICondition> second_;
-    uint64_t window_ms_;
+    uint64_t window_ms_{};
     bool same_pid_ = true;
     std::vector<Pending> pending_;
 };
