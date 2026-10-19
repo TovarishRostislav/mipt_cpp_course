@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
         agent.PrintSummary();
         return 0;
     } catch (const std::exception& error) {
-        std::print(stderr, "ошибка: {}\n", error.what());
+        std::print(stderr, "error: {}\n", error.what());
         return 1;
     }
 }

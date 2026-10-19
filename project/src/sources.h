@@ -1,7 +1,7 @@
-#ifndef NANO_EDR_SOURCES_H
-#define NANO_EDR_SOURCES_H
+#pragma once
 
 #include <string>
+#include <fstream>
 
 #include "agent.h"
 #include "os_handle.h"
@@ -15,6 +15,7 @@ class FileSource {
 
  private:
     std::string path_;
+    std::ifstream log_;
 };
 
 class OsSource {
@@ -27,5 +28,4 @@ class OsSource {
 };
 
 }
-
-#endif  
+ 

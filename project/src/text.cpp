@@ -12,26 +12,21 @@ bool EqualsIgnoreCase(const std::string& a, const std::string& b){
     return true;
 }
 
-bool ContainsIgnoreCase(const std::string& haystack, const std::string& needle){
-    if(needle.empty()) return true;
-    if(needle.size() > haystack.size()) return false;
+bool ContainsIgnoreCase(const std::string& haystack, const std::string& needle) {
+    if (needle.empty()) return true;
+    if (needle.size() > haystack.size()) return false;
 
-    std::string needle_low;
-    needle_low.reserve(needle.size());
-    for(const char c : needle){
-        needle_low.push_back(MyToLower(c));
-    }
-
-    for(size_t i = 0; i + needle.size() <= haystack.size(); ++i){
+    for (std::size_t i = 0; i + needle.size() <= haystack.size(); ++i) {
         bool match = true;
-        for(size_t j = 0; j < needle.size(); ++j){
-            if(needle_low[j] != MyToLower(haystack[i+j])){ match = false; break;}
+        for (std::size_t j = 0; j < needle.size(); ++j) {
+            if (MyToLower(haystack[i + j]) != MyToLower(needle[j])) {
+                match = false;
+                break;
+            }
         }
-    
-        if(match) return true;
+        if (match) return true;
     }
     return false;
-
 }
 
 bool EndsWithIgnoreCase(const std::string& haystack, const std::string& suff){

@@ -2,31 +2,33 @@
 
 #include <fstream>
 #include <stdexcept>
+#include <print>
 
 #include "parse.h"
 
 namespace nano_edr {
 
-FileSource::FileSource(const std::string& path) : path_(path) {}
-
-void FileSource::Run(Agent* agent) {
-    std::ifstream log(path_);
-    if (!log) {
-        throw std::runtime_error("не удалось открыть файл: " + path_);
+FileSource::FileSource(const std::string& path) : path_(path), log_(path) {
+    if (!log_) {
+        throw std::runtime_error("open error: " + path_);
     }
-
+}
+void FileSource::Run(Agent* agent) {
     std::string line;
-    while (std::getline(log, line)) {
-        if (IsBlankOrComment(line)) continue;
-
-        EventParts parts;
-        if (!ParseEventParts(line, &parts)) continue;
-
+    while (std::getline(log_, line)) {
         try {
+            if (IsBlankOrComment(line)) continue;
+
+            EventParts parts;
+            if (!ParseEventParts(line, &parts)) continue;
+
+        
             Event event(parts);
             agent->HandleEvent(event);
+        } catch (const std::exception& ex) {
+            std::print(stderr, "skip event: {}\n", ex.what());
         } catch (...) {
-            // пропускаем битое событие
+            std::print(stderr, "skip event: неизвестная ошибка\n");
         }
     }
 }
