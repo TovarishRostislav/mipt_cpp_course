@@ -27,12 +27,12 @@
 
 #include <vector>
 
-#include "rule.h"
+#include "rule_engine.h"
 
 namespace nano_edr {
 
 // Таблица правил агента и её длина — ровно то, что принимает CheckRules.
-std::vector<MatchRule> BuildAgentRules();
+RuleEngine BuildAgentRules();
 
 }  // namespace nano_edr
 
