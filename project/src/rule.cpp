@@ -34,11 +34,10 @@ void SequenceRule::SetSecond(std::unique_ptr<ICondition> c) {second_ = std::move
 bool SequenceRule::Check(const Event& event) {
     if (!first_ || !second_) return false;
 
-    const int64_t now = event.ts().ms;
-    pending_.erase(
-        std::remove_if(pending_.begin(), pending_.end(),
-            [&](const Pending& p) { return now - p.ts_ms > window_ms_; }),
-        pending_.end());
+    const uint64_t now = event.ts().ms;
+    std::erase_if(pending_, [&](const Pending& p) { 
+        return now - p.ts_ms > window_ms_; 
+    });
 
     if (second_->Matches(event)) {
         for (auto it = pending_.begin(); it != pending_.end(); ++it) {

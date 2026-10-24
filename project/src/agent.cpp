@@ -26,7 +26,7 @@ void Agent::HandleEvent(const Event& event) {
                    event.pid());
     }
 
-    if(fired.empty() && !quiet_){
+    if(!fired.empty() && !quiet_){
         PrintContext();
     }
 
