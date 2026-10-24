@@ -46,7 +46,7 @@ void Agent::OnSkipped() {
 }
 
 void Agent::OnBroken() {
-    ++broked_;  
+    ++broken_;  
 }
 
 void Agent::OnTick() {
@@ -61,7 +61,7 @@ void Agent::PrintSummary() const {
         std::print("type={}: {}\n", type, count);
     }
 
-    std::print("пропущено: {}, битых: {}\n", skipped_, broked_);
+    std::print("пропущено: {}, битых: {}\n", skipped_, broken_);
 
     std::print("правила, детектов:\n");
     for(size_t i = 0; i < engine_.size(); ++i){

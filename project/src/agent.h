@@ -32,7 +32,7 @@ private:
    std::map<std::string, int> type_counts_;
    const EventNode* ctx_ = nullptr;
    int64_t skipped_ = 0;
-   int64_t broked_ = 0;
+   int64_t broken_ = 0;
    RuleEngine engine_;
 };
 

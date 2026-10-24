@@ -9,9 +9,7 @@
 
 namespace nano_edr {
 
-namespace {
-
-RuleEngine BuildRules() {
+RuleEngine BuildAgentRules() {
     RuleEngine engine;
 
 
@@ -157,10 +155,8 @@ RuleEngine BuildRules() {
     return engine;
 }
 
-}
 
-RuleEngine BuildAgentRules() {
-    return BuildRules();
-}
+
 
 }
+
