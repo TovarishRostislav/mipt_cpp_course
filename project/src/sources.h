@@ -1,29 +1,30 @@
 #pragma once
 
-#include <string>
 #include <fstream>
+#include <string>
 
-#include "agent.h"
+#include "event_source.h"
 #include "os_handle.h"
 
 namespace nano_edr {
 
-class FileSource {
+class FileSource : public IEventSource {
  public:
     explicit FileSource(const std::string& path);
-    void Run(Agent* agent);
+    void Run(IEventHandler* handler) override;
 
  private:
     std::string path_;
     std::ifstream log_;
 };
 
-class OsSource {
+class OsSource : public IEventSource{
  public:
     explicit OsSource(const std::string& config_path);
-    void Run(Agent* agent);
+    void Run(IEventHandler* handler) override;
 
  private:
+ static void Trampoline(const os_event* event, void* ctx) noexcept;
     OsHandle handle_;
 };
 

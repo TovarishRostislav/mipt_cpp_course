@@ -9,26 +9,24 @@
 namespace nano_edr {
 
 Agent::Agent(size_t window_size, bool quiet)
-    : window_(window_size), quiet_(quiet), rules_(BuildAgentRules()) {}
+    : window_(window_size), quiet_(quiet), engine_(BuildAgentRules()) {}
 
 void Agent::HandleEvent(const Event& event) {
     ++total_events_;
     type_counts_[event.type()]++;
 
-    bool any_detected = false;
+    std::vector<const IRule*> fired;
+    engine_.ProcessEvent(event, &fired);
 
-    for (MatchRule& rule : rules_){
-        if (rule.Check(event)){
-            std::print("[DETECT] {}  {}  ts={} pid={}\n",
-                    SeverityName(rule.severity()),
-                    rule.id(),
-                    event.raw_ts(),
-                    event.pid());
-            any_detected = true;
-        }
+    for(const auto& rule : fired){
+        std::print("[DETECT] {}  {}  ts={} pid={}\n",
+                   SeverityName(rule->severity()),
+                   rule->id(),
+                   event.raw_ts(),
+                   event.pid());
     }
 
-    if (any_detected && !quiet_) {
+    if(!fired.empty() && !quiet_){
         PrintContext();
     }
 
@@ -42,6 +40,19 @@ void Agent::HandleEvent(const Event& event) {
     }
 }   
 
+
+void Agent::OnSkipped() {
+    ++skipped_; 
+}
+
+void Agent::OnBroken() {
+    ++broken_;  
+}
+
+void Agent::OnTick() {
+
+}
+
 void Agent::PrintSummary() const {
     if (quiet_) return;
 
@@ -50,9 +61,11 @@ void Agent::PrintSummary() const {
         std::print("type={}: {}\n", type, count);
     }
 
+    std::print("пропущено: {}, битых: {}\n", skipped_, broken_);
+
     std::print("правила, детектов:\n");
-    for (const MatchRule& rule : rules_){
-        std::print("  {:<22} {}\n", rule.id(), rule.hits());
+    for(size_t i = 0; i < engine_.size(); ++i){
+        std::print("  {:<22} {}\n", engine_.rule(i).id(), engine_.rule(i).hits());
     }
 }
 
@@ -69,27 +82,6 @@ void Agent::PrintContext() const {
                 ctx_->next->event.raw_ts(),
                 ctx_->next->event.type(),
                 ctx_->next->event.pid());
-    }
-}
-
-void Agent::Trampoline(const os_event* ev, void* ctx) noexcept {
-    try {
-        Agent* agent = static_cast<Agent*>(ctx);
-
-        EventParts parts;
-        parts.ts   = std::to_string(ev->ts);
-        parts.type = ev->type;
-        parts.pid  = (ev->pid == 0) ? std::string{} : std::to_string(ev->pid);
-        for (std::size_t i = 0; i < ev->field_count; ++i) {
-            parts.fields.push_back({ev->fields[i].key, ev->fields[i].value});
-        }
-
-        Event event(parts);
-        agent->HandleEvent(event);
-    } catch (const std::exception& ex) {
-        std::print(stderr, "trampoline: {}\n", ex.what());
-    } catch (...) {
-        std::print(stderr, "trampoline: undefined error\n");
     }
 }
 

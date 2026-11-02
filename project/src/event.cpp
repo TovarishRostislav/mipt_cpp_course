@@ -6,6 +6,17 @@
 
 namespace nano_edr {
 
+EventType EventTypeFromString(const std::string& type){
+    if(type == "process_start") return EventType::kProcessStart;
+    if(type == "process_end") return EventType::kProcessEnd;
+    if(type == "file_create") return EventType::kFileCreate;
+    if(type == "file_write") return EventType::kFileWrite;
+    if(type == "file_delete") return EventType::kFileDelete;
+    if(type == "file_move") return EventType::kFileMove;
+    if(type == "net_connect") return EventType::kNetConnect;
+    return EventType::kOther;
+}
+
 Event::Event(const EventParts& parts):
     raw_ts_(parts.ts),
     type_(parts.type),
@@ -18,11 +29,14 @@ Event::Event(const EventParts& parts):
         const char* first = parts.ts.data();
         const char* last = first + parts.ts.size();
         auto [ptr, ec] = std::from_chars(first,last, ms);
+
         if (ec != std::errc{} || ptr != last) {
             throw std::invalid_argument("Event: invalid ts " + parts.ts);
         }
 
         ts_ = Timestamp{ms};
+
+        event_type_ = EventTypeFromString(parts.type);
 }
 
 std::string ToString(const Event& event){

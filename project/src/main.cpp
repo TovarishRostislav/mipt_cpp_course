@@ -66,14 +66,15 @@ int main(int argc, char** argv) {
 
     try {
         nano_edr::Agent agent(window_size, quiet);
+        std::unique_ptr<nano_edr::IEventSource> source;
 
         if (use_file) {
-            nano_edr::FileSource source(config_path);
-            source.Run(&agent);
+            source = std::make_unique<nano_edr::FileSource>(config_path);
         } else {
-            nano_edr::OsSource source(config_path);
-            source.Run(&agent);
+            source = std::make_unique<nano_edr::OsSource>(config_path);
         }
+
+        source->Run(&agent);
 
         agent.PrintSummary();
         return 0;
