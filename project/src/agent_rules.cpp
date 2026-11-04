@@ -6,6 +6,8 @@
 #include "conditions.h"
 #include "rule.h"
 #include "rule_engine.h"
+#include "make_rule.h"
+#include "combinators.h"
 
 namespace nano_edr {
 
@@ -151,6 +153,29 @@ RuleEngine BuildAgentRules() {
         beacon->AddAction("kill_process");
         engine.AddRule(std::move(beacon));
     }
+
+    {
+        auto mass_write = MakeRule<ThresholdRule<128>>(
+            "ransomware_mass_write", Severity::kCritical,
+            20,
+            10000,
+            "pid" 
+        );
+
+        mass_write->SetCondition(MakeCondition(AllOfStatic(
+            EventTypeIs({EventType::kFileCreate, EventType::kFileWrite, EventType::kFileMove}),
+            AnyOfStatic(FieldContains("path", "\\Documents\\"),
+                        FieldContains("path", "\\Desktop\\"),
+                        FieldContains("to",   "\\Documents\\"),
+                        FieldContains("to",   "\\Desktop\\"))
+        )));
+
+        mass_write->AddAction("kill_process");
+        mass_write->AddAction("quarantine_file");
+        engine.AddRule(std::move(mass_write));
+    }
+
+
 
     return engine;
 }
