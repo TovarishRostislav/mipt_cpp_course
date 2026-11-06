@@ -45,6 +45,8 @@ public:
     }
 
     void Clear() {
+        data_ = {};
+
         begin_ = 0;
         end_ = 0;
         size_ = 0;
@@ -73,7 +75,7 @@ public:
     }
 
 private:
-    std::array<T, N> data_{}; 
+    std::array<T, N> data_; 
     std::size_t begin_ = 0;    
     std::size_t end_ = 0;    
     std::size_t size_ = 0;  
