@@ -8,8 +8,8 @@
 
 namespace nano_edr {
 
-Agent::Agent(size_t window_size, bool quiet)
-    : window_(window_size), quiet_(quiet), engine_(BuildAgentRules()) {}
+Agent::Agent(bool quiet)
+    : quiet_(quiet), engine_(BuildAgentRules()) {}
 
 void Agent::HandleEvent(const Event& event) {
     ++total_events_;
@@ -17,6 +17,10 @@ void Agent::HandleEvent(const Event& event) {
 
     std::vector<const IRule*> fired;
     engine_.ProcessEvent(event, &fired);
+
+    if(!fired.empty() && !quiet_){
+        PrintContext();
+    }
 
     for(const auto& rule : fired){
         std::print("[DETECT] {}  {}  ts={} pid={}\n",
@@ -26,18 +30,7 @@ void Agent::HandleEvent(const Event& event) {
                    event.pid());
     }
 
-    if(!fired.empty() && !quiet_){
-        PrintContext();
-    }
-
-    const EventNode* old_tail = window_.back();
-    window_.PushBack(event);
-
-    if (window_.size() == 1) {
-        ctx_ = window_.head();
-    } else {
-        ctx_ = old_tail;
-    }
+    window_.PushBack(WindowEntry{event.ts(), event.type(), event.pid()});
 }   
 
 
@@ -67,21 +60,20 @@ void Agent::PrintSummary() const {
     for(size_t i = 0; i < engine_.size(); ++i){
         std::print("  {:<22} {}\n", engine_.rule(i).id(), engine_.rule(i).hits());
     }
+
+    std::print("[STAT] в окне {} из {} мест\n", window_.size(), RingBuffer<WindowEntry, Agent::kWindowCap>::capacity());
 }
 
 void Agent::PrintContext() const {
-    if (ctx_ == nullptr) return;
-
-    if (ctx_->next == nullptr) {
-        std::print("[CTX] -1: ts={} type={} pid={}\n",
-                ctx_->event.raw_ts(), ctx_->event.type(), ctx_->event.pid());
-    } else {
-        std::print("[CTX] -2: ts={} type={} pid={}\n",
-                ctx_->event.raw_ts(), ctx_->event.type(), ctx_->event.pid());
-        std::print("[CTX] -1: ts={} type={} pid={}\n",
-                ctx_->next->event.raw_ts(),
-                ctx_->next->event.type(),
-                ctx_->next->event.pid());
+    if (window_.size() >= 2) {
+        const auto& prev = window_[window_.size() - 2];
+        std::print("[CTX] -2: {} {} pid={}\n", prev.ts.ms, prev.type, prev.pid);
+        
+        const auto& last = window_.back();
+        std::print("[CTX] -1: {} {} pid={}\n", last.ts.ms, last.type, last.pid);
+    } else if (window_.size() == 1) {
+        const auto& last = window_.back();
+        std::print("[CTX] -1: {} {} pid={}\n", last.ts.ms, last.type, last.pid);
     }
 }
 
