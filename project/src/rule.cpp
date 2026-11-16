@@ -39,16 +39,31 @@ bool SequenceRule::Check(const Event& event) {
         return now - p.ts_ms > window_ms_; 
     });
 
-    if (second_->Matches(event)) {
-        for (auto it = pending_.begin(); it != pending_.end(); ++it) {
-            if (!same_pid_ || it->pid == event.pid()) {
+
+    if(second_->Matches(event)){
+        for(auto it = pending_.begin(); it != pending_.end(); ++it){
+            bool linked = false;
+            
+            if(child_of_prev_) {
+                if(model_ != nullptr) {
+                    const ProcessRecord* p = model_->FindProcess(event.pid());
+                    if(p != nullptr && p->ppid == it->pid) {
+                        linked = true;
+                    }
+                }
+            }else if(same_pid_){
+                linked = (it->pid == event.pid());
+            }else{
+                linked = true;
+            }
+
+            if (linked){
                 pending_.erase(it);
                 CountHit();
                 return true;
             }
         }
     }
-
     if (first_->Matches(event)) {
         pending_.push_back(Pending{event.ts().ms, event.pid()});
     }
@@ -56,4 +71,14 @@ bool SequenceRule::Check(const Event& event) {
     return false;
 }
 
+LambdaRule::LambdaRule(const std::string& id, Severity severity, Predicate predicate)
+    : RuleBase(id, severity), predicate_(std::move(predicate)) {}
+
+bool LambdaRule::Check(const Event& event) {
+    if (predicate_ && predicate_(event)) {
+        CountHit();
+        return true;
+    }
+    return false;
+}
 }

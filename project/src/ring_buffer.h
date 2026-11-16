@@ -5,7 +5,7 @@
 
 namespace nano_edr {
 
-template <typename T, std::size_t N>
+template <typename T, size_t N>
 class RingBuffer {
 public:
     class Iterator {
@@ -27,43 +27,42 @@ public:
         }
 
     private:
-        const RingBuffer* buffer_;
-        std::size_t index_;
+        const RingBuffer* buffer_ = nullptr;
+        std::size_t index_ = 0;
     };
 
     RingBuffer() = default;
 
     void PushBack(const T& value) {
-        data_[end_] = value;
-        end_ = (end_ + 1) % N;
-        
-        if (size_ < N) {
-            ++size_;
-        } else {
+        data_[(begin_ + size_) % N] = value;
+        if (full()) {
             begin_ = (begin_ + 1) % N;
+        } else {
+            ++size_;
         }
     }
 
     void Clear() {
-        data_ = {};
+        for (std::size_t i = 0; i < size_; ++i) {
+            T empty{};
+            std::swap(data_[i], empty);
+        }
 
         begin_ = 0;
-        end_ = 0;
         size_ = 0;
     }
 
-    std::size_t size() const { return size_; }
-    static constexpr std::size_t capacity() { return N; }
+    size_t size() const { return size_; }
+    static constexpr size_t capacity() { return N; }
     bool empty() const { return size_ == 0; }
     bool full() const { return size_ == N; }
 
-    const T& operator[](std::size_t index) const {
+    const T& operator[](size_t index) const {
         return data_[(begin_ + index) % N];
     }
 
     const T& back() const {
-        std::size_t last_index = (end_ + N - 1) % N;
-        return data_[last_index];
+        return (*this)[size_ - 1];
     }
 
     Iterator begin() const { 
@@ -76,9 +75,8 @@ public:
 
 private:
     std::array<T, N> data_; 
-    std::size_t begin_ = 0;    
-    std::size_t end_ = 0;    
-    std::size_t size_ = 0;  
+    size_t begin_ = 0;     
+    size_t size_ = 0;  
 };
 
 } 
