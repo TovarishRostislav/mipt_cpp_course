@@ -4,35 +4,25 @@
 #include <string>
 
 #include "agent_rules.h"
-#include "rules.h"
+#include "edr_handle.h"
 
 namespace nano_edr {
 
-Agent::Agent(bool quiet)
-    : quiet_(quiet), engine_(BuildAgentRules()) {}
+Agent::Agent(bool quiet, uint64_t dedup_period_ms)
+    : quiet_(quiet), dedup_period_ms_(dedup_period_ms),  engine_(BuildAgentRules(&model_)) {engine_.SetModel(&model_);}
 
 void Agent::HandleEvent(const Event& event) {
+    model_.Observe(event);
+
     ++total_events_;
     type_counts_[event.type()]++;
 
-    std::vector<const IRule*> fired;
-    engine_.ProcessEvent(event, &fired);
+    context_printed_ = false;
 
-    if(!fired.empty() && !quiet_){
-        PrintContext();
-    }
-
-    for(const auto& rule : fired){
-        std::print("[DETECT] {}  {}  ts={} pid={}\n",
-                   SeverityName(rule->severity()),
-                   rule->id(),
-                   event.raw_ts(),
-                   event.pid());
-    }
+    engine_.ProcessEvent(event, nullptr);
 
     window_.PushBack(WindowEntry{event.ts(), event.type(), event.pid()});
 }   
-
 
 void Agent::OnSkipped() {
     ++skipped_; 
@@ -62,6 +52,12 @@ void Agent::PrintSummary() const {
     }
 
     std::print("[STAT] в окне {} из {} мест\n", window_.size(), RingBuffer<WindowEntry, Agent::kWindowCap>::capacity());
+
+    std::print("[STAT] в модели процессов {}, файлов {}\n", model_.process_count(), model_.file_count());
+
+    if (suppressed_ > 0) {
+        std::print("[STAT] подавлено дубликатов {} (срок {} мс)\n", suppressed_, dedup_period_ms_);
+    }
 }
 
 void Agent::PrintContext() const {
@@ -77,4 +73,24 @@ void Agent::PrintContext() const {
     }
 }
 
+void Agent::PrintContextOnce() {
+    if (context_printed_ || quiet_) {
+        return;
+    }
+    PrintContext();
+    context_printed_ = true;
+}
+
+void Agent::Subscribe(AlertSink sink) {
+    FanOutSink all;
+    
+    all.Add([this](const Detection&) {
+        PrintContextOnce();
+    });
+    
+    all.Add(std::move(sink));
+
+     engine_.Subscribe(DedupSink(std::move(all), dedup_period_ms_, &suppressed_));
+
+    }
 }
