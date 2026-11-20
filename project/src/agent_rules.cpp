@@ -15,7 +15,6 @@ namespace nano_edr {
 RuleEngine BuildAgentRules(const EntityModel* model) {
     RuleEngine engine;
 
-
     {
         auto rule = std::make_unique<MatchRule>("script_host_from_temp",
                                                 Severity::kHigh);   
@@ -38,6 +37,8 @@ RuleEngine BuildAgentRules(const EntityModel* model) {
         rule->AddCondition(std::move(temp));
 
         rule->AddAction("kill_process");
+        rule->AddAction("quarantine_source");
+        rule->AddAction("delete_dropped");
         engine.AddRule(std::move(rule));
     }
 
@@ -103,7 +104,7 @@ RuleEngine BuildAgentRules(const EntityModel* model) {
         paths->Add(std::make_unique<FieldContains>("to",   "/start menu/programs/startup/"));
         rule->AddCondition(std::move(paths));
 
-        rule->AddAction("quarantine_file");
+        rule->AddAction("delete_evidence");
         engine.AddRule(std::move(rule));
     }
 
@@ -121,7 +122,8 @@ RuleEngine BuildAgentRules(const EntityModel* model) {
         paths->Add(std::make_unique<FieldEndsWith>("to",   ".locked"));
         rule->AddCondition(std::move(paths));
 
-        rule->AddAction("quarantine_file");
+        rule->AddAction("kill_process");
+        rule->AddAction("quarantine_image");
         engine.AddRule(std::move(rule));
     }
 
@@ -172,7 +174,7 @@ RuleEngine BuildAgentRules(const EntityModel* model) {
         )));
 
         mass_write->AddAction("kill_process");
-        mass_write->AddAction("quarantine_file");
+        mass_write->AddAction("quarantine_image");
         engine.AddRule(std::move(mass_write));
     }
 
@@ -215,16 +217,12 @@ RuleEngine BuildAgentRules(const EntityModel* model) {
             });
             
         dropped->AddAction("kill_process");
-        dropped->AddAction("quarantine_file");
+        dropped->AddAction("quarantine_source");
+        dropped->AddAction("delete_dropped");
         engine.AddRule(std::move(dropped));
     }
-
 
     return engine;
 }
 
-
-
-
 }
-

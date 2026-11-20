@@ -32,7 +32,7 @@ class DedupSink {
     // куда считать подавленные, может быть nullptr.
     DedupSink(AlertSink inner, uint64_t period_ms, std::size_t* suppressed);
 
-    void operator()(const Detection& detection) const;
+    void operator()(const Detection& detection);
 private:
     struct Record {
         std::string rule;
@@ -43,7 +43,7 @@ private:
     AlertSink inner_;
     uint64_t period_ms_;
     std::size_t* suppressed_;
-    mutable std::vector<Record> records_; 
+    std::vector<Record> records_; 
 };
 
 }  // namespace nano_edr

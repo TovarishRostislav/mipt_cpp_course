@@ -2,6 +2,9 @@
 
 #include <cstddef>
 #include <array>
+#include <utility>
+
+
 
 namespace nano_edr {
 
@@ -33,8 +36,9 @@ public:
 
     RingBuffer() = default;
 
-    void PushBack(const T& value) {
-        data_[(begin_ + size_) % N] = value;
+    template <typename U>
+    void PushBack(U&& value) {
+        data_[(begin_ + size_) % N] = std::forward<U>(value);
         if (full()) {
             begin_ = (begin_ + 1) % N;
         } else {
