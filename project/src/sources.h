@@ -22,11 +22,14 @@ class OsSource : public IEventSource{
  public:
     explicit OsSource(const std::string& config_path);
     void Run(IEventHandler* handler) override;
+    OsHandle* os() override { return &handle_; }
 
  private:
  static void Trampoline(const os_event* event, void* ctx) noexcept;
     OsHandle handle_;
 };
+
+    
 
 }
  

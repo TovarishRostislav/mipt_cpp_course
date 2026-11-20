@@ -39,31 +39,16 @@ bool SequenceRule::Check(const Event& event) {
         return now - p.ts_ms > window_ms_; 
     });
 
-
-    if(second_->Matches(event)){
-        for(auto it = pending_.begin(); it != pending_.end(); ++it){
-            bool linked = false;
-            
-            if(child_of_prev_) {
-                if(model_ != nullptr) {
-                    const ProcessRecord* p = model_->FindProcess(event.pid());
-                    if(p != nullptr && p->ppid == it->pid) {
-                        linked = true;
-                    }
-                }
-            }else if(same_pid_){
-                linked = (it->pid == event.pid());
-            }else{
-                linked = true;
-            }
-
-            if (linked){
+    if (second_->Matches(event)){
+        for (auto it = pending_.begin(); it != pending_.end(); ++it) {
+            if (Linked(*it, event)) {
                 pending_.erase(it);
                 CountHit();
                 return true;
             }
         }
     }
+    
     if (first_->Matches(event)) {
         pending_.push_back(Pending{event.ts().ms, event.pid()});
     }
@@ -80,5 +65,21 @@ bool LambdaRule::Check(const Event& event) {
         return true;
     }
     return false;
+}
+
+bool SequenceRule::Linked(const Pending& first, const Event& second) const {
+    if (child_of_prev_) {
+        if (model_ == nullptr) {
+            return false;
+        }
+        const ProcessRecord* p = model_->FindProcess(second.pid());
+        return p != nullptr && p->ppid == first.pid;
+    } 
+    
+    if (same_pid_) {
+        return first.pid == second.pid();
+    }
+    
+    return true;
 }
 }

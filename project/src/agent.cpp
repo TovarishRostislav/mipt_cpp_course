@@ -4,7 +4,6 @@
 #include <string>
 
 #include "agent_rules.h"
-#include "edr_handle.h"
 
 namespace nano_edr {
 
@@ -13,6 +12,12 @@ Agent::Agent(bool quiet, uint64_t dedup_period_ms)
 
 void Agent::HandleEvent(const Event& event) {
     model_.Observe(event);
+    if (responder_ != nullptr && responder_->Recognize(event)) {
+        WindowEntry entry;
+        entry.ts = event.ts(); entry.type = event.type(); entry.pid = event.pid();
+        window_.PushBack(std::move(entry));
+        return;
+    }
 
     ++total_events_;
     type_counts_[event.type()]++;
@@ -21,7 +26,13 @@ void Agent::HandleEvent(const Event& event) {
 
     engine_.ProcessEvent(event, nullptr);
 
-    window_.PushBack(WindowEntry{event.ts(), event.type(), event.pid()});
+    WindowEntry entry;
+    entry.ts = event.ts();
+    entry.type = event.type();
+    entry.pid = event.pid();
+    
+    window_.PushBack(std::move(entry)); 
+
 }   
 
 void Agent::OnSkipped() {
@@ -34,6 +45,14 @@ void Agent::OnBroken() {
 
 void Agent::OnTick() {
 
+}
+
+void Agent::EnableResponse(OsHandle* os, bool dry_run, const std::string& quarantine_dir) {
+    planner_ = std::make_unique<ResponsePlanner>(&model_, quarantine_dir);
+    responder_ = std::make_unique<Responder>(os, dry_run);
+    engine_.Subscribe([this](const Detection& detection) {
+        responder_->Execute(planner_->Plan(detection));
+    });
 }
 
 void Agent::PrintSummary() const {
@@ -57,6 +76,14 @@ void Agent::PrintSummary() const {
 
     if (suppressed_ > 0) {
         std::print("[STAT] подавлено дубликатов {} (срок {} мс)\n", suppressed_, dedup_period_ms_);
+    }
+    if (responder_ != nullptr) {
+        const auto& st = responder_->stats();
+        std::print("[STAT] действий запланировано {}, повторов отброшено {}\n", st.planned, st.skipped_repeat);
+        std::print("[STAT] завершено процессов {}, изолировано файлов {}, удалено файлов {}\n", st.killed, st.quarantined, st.deleted);
+        if (st.own_events > 0) {
+            std::print("[STAT] своих событий {}\n", st.own_events);
+        }
     }
 }
 

@@ -26,9 +26,11 @@ void FileSink::operator()(const Detection& detection) {
 void CountingSink::operator()(const Detection& detection) const {
     if(counter_ != nullptr){
         counter_->total++;
-        counter_->seen.push_back(detection);
+        counter_->seen.emplace_back(SeenAlert{detection.rule, detection.severity,
+                                            detection.ts, detection.pid, detection.actions});
     }
 }
+
 void FanOutSink::Add(AlertSink sink) {
     sinks_.push_back(std::move(sink));
 }
@@ -44,7 +46,7 @@ DedupSink::DedupSink(AlertSink inner, uint64_t period_ms, std::size_t* suppresse
       period_ms_(period_ms), 
       suppressed_(suppressed) {}
 
-void DedupSink::operator()(const Detection& detection) const {
+void DedupSink::operator()(const Detection& detection){
     if (period_ms_ == 0) {
         inner_(detection);
         return;
